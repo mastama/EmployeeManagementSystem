@@ -94,6 +94,7 @@ public class UserAccountRepository : IUserAccount
             return new GeneralResponse("15", "Model is empty", null);
         }
         
+        // find user by email
         var applicationUser = await FindUserByEmail(user.Email!);
         if (applicationUser is null)
         {
@@ -105,28 +106,97 @@ public class UserAccountRepository : IUserAccount
         {
             return new GeneralResponse("15", " Email or Password not valid", null);
         }
-        
-        var getUserRole = await _appDbContext.UserRoles.FirstOrDefaultAsync(r => r.UserId == applicationUser.Id);
+
+        // find role user
+        var getUserRole = await FindUserRole(applicationUser.Id);
         if (getUserRole is null)
         {
             return new GeneralResponse("15", "User role not found", null);
         }
-        var getRoleName = await _appDbContext.SystemRoles.FirstOrDefaultAsync(r => r.Id == getUserRole.RoleId);
+        
+        // find name role based on RoleId
+        var getRoleName = await FindRoleName(getUserRole.RoleId);
         if (getUserRole is null)
         {
             return new GeneralResponse("15", "Role name not found", null);
         }
 
+        // create jwt token
         string jwtToken = GenerateToken(applicationUser, getRoleName!.Name!);
         string refreshToken = GenerateRefreshToken();
         var loginResponse = new LoginResponse(jwtToken, refreshToken);
         
+        //save the refresh token to the database
+        var findUser = await _appDbContext.RefreshTokenInfos.FirstOrDefaultAsync(r => r.UserId == applicationUser.Id);
+        if (findUser != null)
+        {
+            // perbarui token jika sudah ada
+            findUser.Token = refreshToken;
+            _appDbContext.RefreshTokenInfos.Update(findUser);
+        }
+        else
+        {
+            // tambahkan refresh token baru
+            await AddToDatabase(new RefreshTokenInfo()
+            {
+                Token = refreshToken,
+                UserId = applicationUser.Id,
+            });
+        }
+        // save token to database
+        await _appDbContext.SaveChangesAsync();
         return new GeneralResponse("00", "Login Successfully", loginResponse);
+    }
+
+    public async Task<GeneralResponse> RefreshTokenAsync(RefreshToken token)
+    {
+        if (token is null) 
+        {
+            return new GeneralResponse("15", "Model is empty", null);
+        }
+        
+        var findToken = await _appDbContext.RefreshTokenInfos.FirstOrDefaultAsync(r => r.Token == token.Token);
+        if (findToken is null)
+        {
+            return new GeneralResponse("15", "Refresh token is required", null);
+        }
+        
+        // get user details
+        var user = await _appDbContext.ApplicationUsers.FirstOrDefaultAsync(u => u.Id == findToken.UserId);
+        if (user is null)
+        {
+            return new GeneralResponse("15", "Refresh token could not be generated because user not found", null);
+        }
+        var userRole = await FindUserRole(user.Id);
+        var roleName = await FindRoleName(userRole.RoleId);
+        string jwtToken = GenerateToken(user, roleName.Name!);
+        string refreshToken = GenerateRefreshToken();
+        var loginResponse = new LoginResponse(jwtToken, refreshToken);
+        
+        var updateRefreshToken = await _appDbContext.RefreshTokenInfos.FirstOrDefaultAsync(u => u.UserId == user.Id);
+        if (updateRefreshToken is null)
+        {
+            return new GeneralResponse("15", "Refresh token could not be generated because user has not sign in", null);
+        }
+        
+        updateRefreshToken.Token = refreshToken;
+        await _appDbContext.SaveChangesAsync();
+        return new GeneralResponse("00", "Refresh token updated successfully", loginResponse);
     }
 
     private async Task<ApplicationUser> FindUserByEmail(string email)
     {
         return await _appDbContext.ApplicationUsers.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower()); 
+    }
+
+    private async Task<UserRole> FindUserRole(int userId)
+    {
+       return await _appDbContext.UserRoles.FirstOrDefaultAsync(r => r.UserId == userId);
+    }
+
+    private async Task<SystemRole> FindRoleName(int roleId)
+    {
+        return await _appDbContext.SystemRoles.FirstOrDefaultAsync(r => r.Id == roleId);
     }
 
     private async Task<T> AddToDatabase<T>(T model)

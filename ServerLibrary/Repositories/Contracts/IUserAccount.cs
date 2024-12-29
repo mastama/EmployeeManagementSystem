@@ -7,4 +7,5 @@ public interface IUserAccount
 {
     Task<GeneralResponse> CreateAsync(Register user);
     Task<GeneralResponse> SignInAsync(Login user);
+    Task<GeneralResponse> RefreshTokenAsync(RefreshToken token);
 }
