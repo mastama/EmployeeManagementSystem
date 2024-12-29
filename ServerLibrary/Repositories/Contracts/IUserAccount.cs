@@ -6,5 +6,5 @@ namespace ServiceLibrary.Repositories.Contracts;
 public interface IUserAccount
 {
     Task<GeneralResponse> CreateAsync(Register user);
-    Task<LoginResponse> SignInAsync(Login user);
+    Task<GeneralResponse> SignInAsync(Login user);
 }

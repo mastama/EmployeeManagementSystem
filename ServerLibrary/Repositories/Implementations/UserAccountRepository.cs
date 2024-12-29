@@ -1,8 +1,13 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using BaseLibrary.DTOs;
 using BaseLibrary.Entities;
 using BaseLibrary.Responses;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using ServiceLibrary.Data;
 using ServiceLibrary.Helpers;
 using ServiceLibrary.Repositories.Contracts;
@@ -82,9 +87,41 @@ public class UserAccountRepository : IUserAccount
         return new GeneralResponse("00", "User account created successfully!", newUser);
     }
 
-    public Task<LoginResponse> SignInAsync(Login user)
+    public async Task<GeneralResponse> SignInAsync(Login user)
     {
-        throw new NotImplementedException();
+        if (user is null)
+        {
+            return new GeneralResponse("15", "Model is empty", null);
+        }
+        
+        var applicationUser = await FindUserByEmail(user.Email!);
+        if (applicationUser is null)
+        {
+            return new GeneralResponse("15", "User with this email not found", null);
+        }
+        
+        // verify password
+        if (!BCrypt.Net.BCrypt.Verify(user.Password, applicationUser.Password))
+        {
+            return new GeneralResponse("15", " Email or Password not valid", null);
+        }
+        
+        var getUserRole = await _appDbContext.UserRoles.FirstOrDefaultAsync(r => r.UserId == applicationUser.Id);
+        if (getUserRole is null)
+        {
+            return new GeneralResponse("15", "User role not found", null);
+        }
+        var getRoleName = await _appDbContext.SystemRoles.FirstOrDefaultAsync(r => r.Id == getUserRole.RoleId);
+        if (getUserRole is null)
+        {
+            return new GeneralResponse("15", "Role name not found", null);
+        }
+
+        string jwtToken = GenerateToken(applicationUser, getRoleName!.Name!);
+        string refreshToken = GenerateRefreshToken();
+        var loginResponse = new LoginResponse(jwtToken, refreshToken);
+        
+        return new GeneralResponse("00", "Login Successfully", loginResponse);
     }
 
     private async Task<ApplicationUser> FindUserByEmail(string email)
@@ -98,4 +135,29 @@ public class UserAccountRepository : IUserAccount
         await _appDbContext.SaveChangesAsync();
         return (T)result.Entity;
     }
+    
+    // generateToken
+    private string GenerateToken(ApplicationUser applicationUser, string roleName)
+    {
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSection.Key!));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        var userClaims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, applicationUser.Id.ToString()),
+            new Claim(ClaimTypes.Name, applicationUser.Fullname!),
+            new Claim(ClaimTypes.Email, applicationUser.Email!),
+            new Claim(ClaimTypes.Role, roleName!),
+        };
+        var token = new JwtSecurityToken(
+            issuer: _jwtSection.Issuer,
+            audience: _jwtSection.Audience,
+            claims: userClaims,
+            expires: DateTime.Now.AddDays(1),
+            signingCredentials: credentials
+        );
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+    
+    // genereate refreshToken
+    private static string GenerateRefreshToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
 }

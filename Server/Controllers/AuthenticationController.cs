@@ -28,4 +28,15 @@ public class AuthenticationController : ControllerBase
         var result = await _userAccount.CreateAsync(user);
         return Ok(result);
     }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> SignInAsync(Login user)
+    {
+        if (user == null)
+        {
+            return BadRequest("Model is empty");
+        }
+        var result = await _userAccount.SignInAsync(user);
+        return Ok(result);
+    }
 }
