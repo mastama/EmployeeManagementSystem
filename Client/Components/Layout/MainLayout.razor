@@ -1,13 +1,13 @@
-﻿@inherits Microsoft.AspNetCore.Components.LayoutComponentBase
-
-<div class="page">
+﻿<div class="page">
     <div class="sidebar">
         <NavMenu/>
     </div>
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <a class="btn btn-none" href="identity/account/login">Login</a>
+            <a class="btn btn-none" href="identity/account/register">Register</a>
+            <a class="btn btn-none text-danger" @onclick="LogoutClicked">Logout</a>
         </div>
 
         <article class="content px-4">
@@ -21,3 +21,19 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    async Task LogoutClicked()
+    {
+        if (await JsRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to logout?"))
+        {
+            var logoutModel = new UserSession();
+            var customAuthStateProvider = AuthStateProvider as CustomAuthenticationStateProvider;
+            if (customAuthStateProvider != null)
+            {
+                await customAuthStateProvider.UpdateAuthenticationState(logoutModel);
+                NavManager.NavigateTo("/", forceLoad: true);
+            }
+        }
+    }
+}

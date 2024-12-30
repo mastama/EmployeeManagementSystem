@@ -1,0 +1,71 @@
+@page "/identity/account/login"
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <EditForm Model="_user" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="card">
+                    <div class="card-header">Fill this form to Login</div>
+                    <div class="card-body">
+                        <div class="form-group mt-3">
+                            <label class="form-label">Email</label>
+                            <InputText @bind-Value="_user.Email" class="form-control" />
+                        </div>
+                        <div class="form-group mt-3">
+                            <label class="form-label">Password</label>
+                            <InputText @bind-Value="_user.Password" type="password" class="form-control" />
+                        </div>
+                        <div class="form-group mt-3">
+                            <button class="btn btn-outline-primary float-end" type="submit">Login</button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_errorMessage))
+                        {
+                            <div class="alert alert-danger mt-3">@_errorMessage</div>
+                        }
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private Login _user = new Login();
+    private string? _errorMessage;
+
+    async Task HandleLogin()
+    {
+        try
+        {
+            var response = await UserAccountService.SignInAsync(_user);
+            if (response.ResponseCode == "00")
+            {
+                var token = response.Data as string;
+                var refreshToken = response.Data as string;
+                if (!string.IsNullOrEmpty(token))
+                {
+                    var customAuthStateProvider = AuthStateProvider as CustomAuthenticationStateProvider;
+                    if (customAuthStateProvider != null)
+                    {
+                        await customAuthStateProvider.UpdateAuthenticationState(new UserSession {Token = token, RefreshToken = refreshToken});
+                        NavManager.NavigateTo("/", forceLoad: true);
+                    }
+                } 
+                else
+                {
+                    _errorMessage = "Login failed: Token is missing.";
+                }
+            }
+            else
+            {
+                _errorMessage = $"Login failed: {response.ResponseMessage}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+        }
+    }
+}

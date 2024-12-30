@@ -21,6 +21,16 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.Configure<JwtSection>(builder.Configuration.GetSection("JwtSection"));
 // Konfigurasi lainnya
 builder.Services.AddScoped<IUserAccount, UserAccountRepository>();
+// Allow CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowBlazorWasm",
+        builder => builder
+            .WithOrigins("https://localhost:7130", "http://localhost:5298") //from properties client
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials());
+});
 // Layanan untuk Controller
 builder.Services.AddControllers();
 
@@ -34,5 +44,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowBlazorWasm");
 app.MapControllers();
 app.Run();

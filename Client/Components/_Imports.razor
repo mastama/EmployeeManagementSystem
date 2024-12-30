@@ -8,3 +8,17 @@
 @using Microsoft.JSInterop
 @using EmployeeManagementClient
 @using EmployeeManagementClient.Components
+
+@using EmployeeManagementClient.Components.Layout
+
+@using BaseLibrary.DTOs
+@using ClientLibrary.Helpers
+@using ClientLibrary.Services.Contracts
+@using Microsoft.AspNetCore.Components.Authorization
+@inherits Microsoft.AspNetCore.Components.LayoutComponentBase
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IUserAccountService UserAccountService;
+
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavManager
